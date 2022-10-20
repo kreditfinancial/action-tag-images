@@ -1,0 +1,33 @@
+name: Tag Images
+description: Adds tags to one or more container repositories.
+inputs:
+  environment:
+    description: The environment used for the new tag.
+    required: true
+  version:
+    description: The version/tag of the image being tagged.
+    required: true
+  repositories:
+    description: The repositories to tag.
+runs:
+  using: composite
+  steps:
+  - env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      VERSION: ${{ inputs.version }}
+      REPOSITORIES: ${{ inputs.repositories }}
+    shell: bash
+    run: |
+      for name in $REPOSITORIES; do
+          manifest=$(aws ecr batch-get-image --repository-name $name --image-ids imageTag=$VERSION --output json | jq --raw-output --join-output '.images[0].imageManifest')
+
+          media_type=''
+          if [[ "$(echo $manifest | jq -r '.mediaType')" == "null" ]]; then
+              media_type=$(aws ecr batch-get-image --repository-name $name --image-ids imageTag=$VERSION --output text --query 'images[0].imageManifestMediaType')
+          fi
+
+          for tag in "$ENVIRONMENT-$VERSION" "$ENVIRONMENT"; do
+              aws ecr batch-delete-image --repository-name $name --image-ids imageTag=${tag,,} > /dev/null
+              aws ecr put-image --repository-name $name --image-tag ${tag,,} --image-manifest "$manifest"  --image-manifest-media-type "$media_type" > /dev/null
+          done
+      done
