@@ -9,6 +9,7 @@ inputs:
     required: true
   repositories:
     description: The repositories to tag.
+    required: true
 runs:
   using: composite
   steps:
